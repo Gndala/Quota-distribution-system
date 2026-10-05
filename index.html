@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>جدول الحصص - اعدادية أم قصر للبنين</title>
+<meta name="description" content="نظام تسجيل جدول حصص المدرسين - اعدادية أم قصر للبنين">
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, serverTimestamp, query, orderBy, where
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC-kRs2R9mBegcMoUsl7Fi6vg3bLlZTqRY",
+    authDomain: "um-qasr-teachers.firebaseapp.com",
+    projectId: "um-qasr-teachers",
+    storageBucket: "um-qasr-teachers.firebasestorage.app",
+    messagingSenderId: "10475015276",
+    appId: "1:10475015276:web:1e53b45d0bcba7e0431c49"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  window.__fb = { db, collection, addDoc, getDocs, deleteDoc, updateDoc, doc, setDoc, serverTimestamp, query, orderBy, where };
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<!-- ExcelJS for Excel export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+
+<style>
+  :root{
+    --navy:#0b2545;
+    --navy-2:#123a6b;
+    --gold:#c9a227;
+    --gold-2:#e0bf4f;
+    --teal:#0d9488;
+    --teal-2:#14b8a6;
+    --bg:#f3f5f8;
+    --card:#ffffff;
+    --ok:#1a7a3e;
+    --danger:#b3261e;
+    --text:#1b2430;
+    --muted:#6b7685;
+    --border:#e2e6ec;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Segoe UI', Tahoma, Arial, sans-serif;
+    background:linear-gradient(180deg,#0b2545 0%, #0d2c52 200px, var(--bg) 200px);
+    color:var(--text);
+    min-height:100vh;
+    padding-bottom:60px;
+  }
+  .container{max-width:1000px;margin:0 auto;padding:0 16px;}
+
+  header.top{padding:26px 16px 18px;text-align:center;color:#fff;position:relative;overflow:hidden;}
+  header.top::before{
+    content:"";
+    position:absolute;inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size:30px 30px;
+    mask-image:radial-gradient(ellipse 100% 100% at 50% 0%, #000 40%, transparent 90%);
+    pointer-events:none;
+  }
+  header.top .badge{
+    position:relative;z-index:1;
+    display:inline-flex;align-items:center;gap:8px;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);
+    padding:6px 14px;border-radius:999px;font-size:12.5px;color:var(--gold-2);
+    margin-bottom:10px;
+  }
+  header.top h1{position:relative;z-index:1;font-size:21px;margin:0 0 4px;font-weight:800;}
+  header.top p{position:relative;z-index:1;margin:0;color:#c9d4e3;font-size:13.5px;}
+
+  .card{
+    background:var(--card);border-radius:var(--radius);padding:20px 18px;
+    margin-bottom:16px;
+    box-shadow:0 1px 2px rgba(11,37,69,.05), 0 6px 14px -10px rgba(11,37,69,.14), 0 18px 32px -16px rgba(11,37,69,.22);
+    border:1px solid var(--border);
+  }
+  .card-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+  .card-top h2{font-size:16.5px;margin:0;font-weight:800;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:13.5px;font-weight:700;margin-bottom:6px;color:var(--navy);}
+  .field .req{color:var(--danger);}
+  .field input, .field select{
+    width:100%;border:1.5px solid var(--border);border-radius:10px;
+    padding:11px 13px;font-size:14.5px;font-family:inherit;background:#fbfcfd;color:var(--text);
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .field input:focus, .field select:focus{outline:none;border-color:var(--navy-2);box-shadow:0 0 0 4px rgba(18,58,107,.1);}
+  .field .hint{font-size:12px;color:var(--muted);margin-top:4px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:560px){.row2{grid-template-columns:1fr;}}
+
+  .section-grid{
+    display:grid;grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));gap:10px;
+  }
+  .section-chip{
+    display:flex;align-items:center;gap:8px;
+    background:#F6F8FB;border:1.5px solid var(--border);border-radius:12px;
+    padding:10px 12px;cursor:pointer;font-size:13px;font-weight:700;
+    transition:border-color .15s, background .15s;
+  }
+  .section-chip:hover{border-color:var(--teal);}
+  .section-chip.checked{background:linear-gradient(135deg, var(--teal), var(--teal-2));border-color:var(--teal);color:#fff;}
+  .section-chip input{width:16px;height:16px;accent-color:#fff;flex-shrink:0;}
+
+  .btn{
+    border:none;border-radius:12px;padding:13px 18px;font-size:14.5px;font-weight:800;cursor:pointer;
+    transition:transform .12s, box-shadow .12s, opacity .12s;
+  }
+  .btn-primary{
+    background:linear-gradient(180deg,var(--navy-2),var(--navy));color:#fff;width:100%;
+    box-shadow:0 10px 24px -8px rgba(11,37,69,.45);
+  }
+  .btn-primary:hover:not(:disabled){transform:translateY(-1px);}
+  .btn-primary:disabled{opacity:.6;cursor:not-allowed;}
+  .btn-sm{padding:8px 14px;font-size:13px;border-radius:10px;border:1.5px solid var(--border);background:#fff;color:var(--text);}
+  .btn-sm:hover{border-color:var(--navy);}
+  .btn-sm.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .btn-sm.danger{color:var(--danger);border-color:#f6c8c6;}
+  .btn-sm.teal{background:var(--teal);color:#fff;border-color:var(--teal);}
+
+  .msg{padding:12px 14px;border-radius:12px;font-size:13.5px;font-weight:600;margin-bottom:14px;display:none;border:1px solid transparent;}
+  .msg.ok{background:#e6f4ea;color:var(--ok);border-color:#bfe6cc;display:block;}
+  .msg.err{background:#fbe9e7;color:var(--danger);border-color:#f3c9c4;display:block;}
+  .msg.info{background:#e0f2fe;color:#0369A1;border-color:#bae6fd;display:block;}
+
+  /* Tabs for sections */
+  .section-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;}
+  .section-tab{
+    flex-shrink:0;padding:9px 16px;border-radius:999px;border:1.5px solid var(--border);
+    background:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
+    transition:background .15s, color .15s, border-color .15s;
+  }
+  .section-tab.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+
+  /* Timetable grid */
+  .timetable-wrap{overflow-x:auto;}
+  table.timetable{width:100%;border-collapse:collapse;min-width:620px;}
+  table.timetable th, table.timetable td{border:1px solid var(--border);text-align:center;padding:0;}
+  table.timetable th{background:#F6F8FB;font-weight:800;font-size:12.5px;padding:8px 4px;}
+  table.timetable td.day-cell{background:#F6F8FB;font-weight:800;font-size:12.5px;padding:8px 6px;white-space:nowrap;}
+  table.timetable td.slot-cell{height:58px;width:90px;cursor:pointer;position:relative;transition:background .12s;}
+  table.timetable td.slot-cell:hover{background:#F0F7FF;}
+  table.timetable td.slot-cell.filled{cursor:default;}
+  table.timetable td.slot-cell.mine{background:linear-gradient(135deg, #E0F2FE, #DBEAFE);}
+  table.timetable td.slot-cell.others{background:#FDEEEE;cursor:not-allowed;}
+  table.timetable td.slot-cell.off-day{background:repeating-linear-gradient(45deg, #f1f1f1, #f1f1f1 6px, #e6e6e6 6px, #e6e6e6 12px);cursor:not-allowed;}
+  .slot-subject{font-size:12px;font-weight:800;color:var(--navy);}
+  .slot-teacher{font-size:10.5px;color:var(--muted);margin-top:2px;}
+  .slot-cell.others .slot-subject{color:var(--danger);}
+  .slot-del{
+    position:absolute;top:2px;left:2px;
+    width:16px;height:16px;border-radius:50%;background:var(--danger);color:#fff;
+    font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+
+  /* Overview full table */
+  .overview-wrap{overflow-x:auto;}
+  table.overview{width:100%;border-collapse:collapse;font-size:10.5px;min-width:1400px;}
+  table.overview th, table.overview td{border:1px solid var(--border);text-align:center;padding:4px 3px;}
+  table.overview th{background:var(--navy);color:#fff;font-weight:800;position:sticky;top:0;}
+  table.overview td.day-col{background:#F6F8FB;font-weight:800;white-space:nowrap;}
+  table.overview td.cell-filled{background:#F0F7FF;}
+  .ov-subject{font-weight:800;color:var(--navy);display:block;}
+  .ov-teacher{color:var(--muted);display:block;font-size:9.5px;}
+
+  /* Modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(11,37,69,.55);display:none;align-items:center;justify-content:center;z-index:100;padding:16px;}
+  .modal-overlay.show{display:flex;}
+  .modal-box{background:#fff;border-radius:18px;padding:22px 20px;max-width:420px;width:100%;}
+  .modal-box h3{margin:0 0 14px;font-size:16px;font-weight:800;}
+  .modal-box .err{color:var(--danger);font-size:13px;min-height:18px;margin-bottom:8px;font-weight:700;}
+  .modal-box input{width:100%;border:1.5px solid var(--border);border-radius:12px;padding:11px 13px;font-size:14.5px;margin-bottom:10px;}
+  .modal-box .actions{display:flex;gap:10px;margin-top:6px;}
+  .modal-box .actions button{flex:1;border-radius:12px;padding:11px;font-weight:700;font-size:14px;border:none;cursor:pointer;}
+  .modal-box .cancel{background:#F1F3F7;color:var(--text);}
+  .modal-box .go{background:var(--navy);color:#fff;}
+
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:22px 16px 0;}
+  footer .designer span{color:var(--navy-2);font-weight:800;}
+
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="badge">📅 اعدادية أم قصر للبنين</div>
+  <h1>نظام تسجيل جدول الحصص الأسبوعي</h1>
+  <p>سجّل بياناتك واختر حصصك بدون تعارض مع بقية المدرسين</p>
+</header>
+
+<div class="container" style="margin-top:-18px;position:relative;z-index:2;">
+
+  <!-- ===================== REGISTRATION SCREEN ===================== -->
+  <div id="registerScreen">
+    <div class="msg err" id="regMsg"></div>
+
+    <div class="card">
+      <div class="card-top"><h2>👨‍🏫 بيانات المدرس</h2></div>
+
+      <div class="field">
+        <label>اسم المدرس الكامل <span class="req">*</span></label>
+        <input type="text" id="teacherNameInput" placeholder="الاسم الرباعي">
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label>المادة التي يدرسها <span class="req">*</span></label>
+          <input type="text" id="subjectInput" placeholder="مثال: الرياضيات">
+        </div>
+        <div class="field">
+          <label>نوع التوظيف <span class="req">*</span></label>
+          <select id="employmentTypeInput">
+            <option value="ملاك">ملاك</option>
+            <option value="عقد">عقد</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field hidden" id="offDayWrap">
+        <label>يوم العطلة (أوف) <span class="req">*</span></label>
+        <select id="offDayInput">
+          <option value="">اختر اليوم</option>
+          <option value="الأحد">الأحد</option>
+          <option value="الاثنين">الاثنين</option>
+          <option value="الثلاثاء">الثلاثاء</option>
+          <option value="الأربعاء">الأربعاء</option>
+          <option value="الخميس">الخميس</option>
+        </select>
+        <div class="hint">هذا اليوم لن يظهر لك كخيار متاح في الجدول</div>
+      </div>
+
+      <div class="field">
+        <label>عدد الحصص الأسبوعية المطلوبة <span class="req">*</span></label>
+        <input type="number" id="weeklyCountInput" min="1" max="36" placeholder="مثال: 12">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-top"><h2>🏫 اختر الشعب التي تدرّسها</h2></div>
+      <div class="section-grid" id="sectionGrid"></div>
+    </div>
+
+    <button class="btn btn-primary" id="enterBtn">دخول إلى الجدول ✔</button>
+  </div>
+
+  <!-- ===================== TIMETABLE SCREEN ===================== -->
+  <div id="timetableScreen" class="hidden">
+    <div class="msg info" id="ttInfo"></div>
+    <div class="msg err" id="ttErr"></div>
+
+    <div class="card">
+      <div class="card-top">
+        <h2 id="ttWelcome">مرحباً</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-sm" id="backToRegisterBtn">⟲ تغيير البيانات</button>
+          <button class="btn-sm teal" id="showOverviewBtn">📋 معاينة الجدول العام</button>
+        </div>
+      </div>
+      <div class="section-tabs" id="sectionTabs"></div>
+      <div class="timetable-wrap">
+        <table class="timetable" id="timetableEl"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== OVERVIEW SCREEN ===================== -->
+  <div id="overviewScreen" class="hidden">
+    <div class="card">
+      <div class="card-top">
+        <h2>📋 الجدول العام لكل الشعب</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-sm" id="backToTimetableBtn">⟲ رجوع لجدولي</button>
+          <button class="btn-sm teal" id="exportOverviewExcel">⬇ Excel</button>
+          <button class="btn-sm teal" id="exportOverviewPdf">⬇ PDF</button>
+          <button class="btn-sm" id="adminAccessBtn">🔒 إدارة</button>
+        </div>
+      </div>
+      <div class="overview-wrap">
+        <table class="overview" id="overviewEl"></table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Conflict resolution modal -->
+<div class="modal-overlay" id="conflictModal">
+  <div class="modal-box">
+    <h3 id="conflictTitle">⚠ تعارض في الجدول</h3>
+    <div id="conflictBody" style="font-size:13.5px;line-height:1.8;color:var(--text);margin-bottom:14px;"></div>
+    <div class="actions">
+      <button class="cancel" id="conflictClose">حسناً، فهمت</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin login modal -->
+<div class="modal-overlay" id="adminLoginModal">
+  <div class="modal-box">
+    <h3>دخول الإدارة</h3>
+    <div class="err" id="adminLoginErr"></div>
+    <input type="password" id="adminLoginInput" placeholder="الرمز السري">
+    <div class="actions">
+      <button class="cancel" id="adminLoginCancel">إلغاء</button>
+      <button class="go" id="adminLoginGo">دخول</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  اعدادية أم قصر للبنين — نظام جدول الحصص
+  <div class="designer">تصميم وتطوير: <span>علي محمد دينار</span></div>
+</footer>
+
+<script>
+/* ================= CONSTANTS ================= */
+const COLLECTION_NAME = "schedule_slots";
+const ADMIN_CODE = "Ali@1997";
+
+const SECTIONS = [
+  'الرابع العلمي أ','الرابع العلمي ب','الرابع العلمي ج',
+  'الرابع الأدبي أ','الرابع الأدبي ب',
+  'الخامس العلمي أ','الخامس العلمي ب','الخامس العلمي ج',
+  'الخامس الأدبي',
+  'السادس العلمي أ','السادس العلمي ب','السادس العلمي ج',
+  'السادس الأدبي أ','السادس الأدبي ب'
+];
+
+const DAYS = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس'];
+const PERIODS_PER_DAY = 6;
+
+let fb = null;
+let fbReadyPromise = new Promise((resolve) => {
+  if (window.__fb){ fb = window.__fb; resolve(); }
+  else window.addEventListener('firebase-ready', () => { fb = window.__fb; resolve(); }, { once:true });
+});
+
+function esc(v){
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ================= TEACHER SESSION STATE ================= */
+let teacherName = '';
+let teacherSubject = '';
+let teacherEmploymentType = 'ملاك';
+let teacherOffDay = '';
+let teacherWeeklyCount = 0;
+let teacherSections = [];
+let activeSectionTab = '';
+
+let allSlots = []; // cached from Firestore: { id, section, day, period, subject, teacherName }
+
+/* ================= REGISTRATION SCREEN ================= */
+const sectionGrid = document.getElementById('sectionGrid');
+SECTIONS.forEach(sec => {
+  const label = document.createElement('label');
+  label.className = 'section-chip';
+  label.innerHTML = `<input type="checkbox" value="${esc(sec)}"> <span>${esc(sec)}</span>`;
+  const checkbox = label.querySelector('input');
+  checkbox.addEventListener('change', () => {
+    label.classList.toggle('checked', checkbox.checked);
+  });
+  sectionGrid.appendChild(label);
+});
+
+const employmentTypeInput = document.getElementById('employmentTypeInput');
+const offDayWrap = document.getElementById('offDayWrap');
+const offDayInput = document.getElementById('offDayInput');
+
+employmentTypeInput.addEventListener('change', () => {
+  const isAqd = employmentTypeInput.value === 'عقد';
+  offDayWrap.classList.toggle('hidden', !isAqd);
+  if (!isAqd) offDayInput.value = '';
+});
+
+const regMsg = document.getElementById('regMsg');
+const enterBtn = document.getElementById('enterBtn');
+
+enterBtn.addEventListener('click', async () => {
+  regMsg.style.display = 'none';
+
+  const nameVal = document.getElementById('teacherNameInput').value.trim();
+  const subjectVal = document.getElementById('subjectInput').value.trim();
+  const weeklyVal = parseInt(document.getElementById('weeklyCountInput').value, 10);
+  const checkedSections = Array.from(sectionGrid.querySelectorAll('input:checked')).map(c => c.value);
+  const isAqd = employmentTypeInput.value === 'عقد';
+  const offDayVal = offDayInput.value;
+
+  if (!nameVal || !subjectVal){
+    regMsg.textContent = 'الرجاء إدخال اسمك والمادة التي تدرّسها.';
+    regMsg.style.display = 'block';
+    return;
+  }
+  if (checkedSections.length === 0){
+    regMsg.textContent = 'الرجاء اختيار شعبة واحدة على الأقل.';
+    regMsg.style.display = 'block';
+    return;
+  }
+  if (isAqd && !offDayVal){
+    regMsg.textContent = 'بما أنك "عقد"، الرجاء تحديد يوم العطلة (الأوف).';
+    regMsg.style.display = 'block';
+    return;
+  }
+  if (!weeklyVal || weeklyVal < 1){
+    regMsg.textContent = 'الرجاء إدخال عدد الحصص الأسبوعية المطلوبة.';
+    regMsg.style.display = 'block';
+    return;
+  }
+
+  teacherName = nameVal;
+  teacherSubject = subjectVal;
+  teacherEmploymentType = isAqd ? 'عقد' : 'ملاك';
+  teacherOffDay = isAqd ? offDayVal : '';
+  teacherWeeklyCount = weeklyVal;
+  teacherSections = checkedSections;
+  activeSectionTab = checkedSections[0];
+
+  enterBtn.disabled = true;
+  enterBtn.textContent = 'جارِ التحميل...';
+  try{
+    await fbReadyPromise;
+    await loadAllSlots();
+    showTimetableScreen();
+  }catch(err){
+    regMsg.textContent = 'تعذّر الاتصال بالخادم، تحقق من الإنترنت وحاول مرة أخرى.';
+    regMsg.style.display = 'block';
+  }finally{
+    enterBtn.disabled = false;
+    enterBtn.textContent = 'دخول إلى الجدول ✔';
+  }
+});
+
+/* ================= DATA LOADING ================= */
+async function loadAllSlots(){
+  const snap = await fb.getDocs(fb.collection(fb.db, COLLECTION_NAME));
+  allSlots = [];
+  snap.forEach(d => allSlots.push({ id: d.id, ...d.data() }));
+}
+
+function findSlot(section, day, period){
+  return allSlots.find(s => s.section === section && s.day === day && s.period === period);
+}
+
+function findTeacherSlotsOnDayPeriod(name, day, period){
+  return allSlots.filter(s => s.teacherName === name && s.day === day && s.period === period);
+}
+
+function countTeacherSlots(name){
+  return allSlots.filter(s => s.teacherName === name).length;
+}
+
+/* ================= SCREEN SWITCHING ================= */
+const registerScreen = document.getElementById('registerScreen');
+const timetableScreen = document.getElementById('timetableScreen');
+const overviewScreen = document.getElementById('overviewScreen');
+
+function showRegisterScreen(){
+  registerScreen.classList.remove('hidden');
+  timetableScreen.classList.add('hidden');
+  overviewScreen.classList.add('hidden');
+}
+function showTimetableScreen(){
+  registerScreen.classList.add('hidden');
+  timetableScreen.classList.remove('hidden');
+  overviewScreen.classList.add('hidden');
+  renderSectionTabs();
+  renderTimetable();
+  updateTtInfo();
+}
+function showOverviewScreen(){
+  registerScreen.classList.add('hidden');
+  timetableScreen.classList.add('hidden');
+  overviewScreen.classList.remove('hidden');
+  renderOverview();
+}
+
+document.getElementById('backToRegisterBtn').addEventListener('click', showRegisterScreen);
+document.getElementById('showOverviewBtn').addEventListener('click', async () => {
+  await loadAllSlots();
+  showOverviewScreen();
+});
+document.getElementById('backToTimetableBtn').addEventListener('click', async () => {
+  await loadAllSlots();
+  showTimetableScreen();
+});
+
+/* ================= TIMETABLE RENDERING ================= */
+const ttWelcome = document.getElementById('ttWelcome');
+const ttInfo = document.getElementById('ttInfo');
+const ttErr = document.getElementById('ttErr');
+const sectionTabs = document.getElementById('sectionTabs');
+const timetableEl = document.getElementById('timetableEl');
+
+function updateTtInfo(){
+  const mySlots = countTeacherSlots(teacherName);
+  ttWelcome.textContent = `مرحباً أستاذ ${teacherName} — ${teacherSubject}`;
+  ttInfo.textContent = `عدد الحصص المسجلة لك حالياً: ${mySlots} من ${teacherWeeklyCount} حصة مطلوبة` +
+    (teacherEmploymentType === 'عقد' ? ` — يوم العطلة: ${teacherOffDay}` : '');
+  ttInfo.style.display = 'block';
+}
+
+function renderSectionTabs(){
+  sectionTabs.innerHTML = teacherSections.map(sec => `
+    <button class="section-tab ${sec === activeSectionTab ? 'active' : ''}" data-sec="${esc(sec)}">${esc(sec)}</button>
+  `).join('');
+  sectionTabs.querySelectorAll('.section-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeSectionTab = btn.dataset.sec;
+      renderSectionTabs();
+      renderTimetable();
+    });
+  });
+}
+
+function renderTimetable(){
+  let html = '<thead><tr><th>اليوم</th>';
+  for (let p = 1; p <= PERIODS_PER_DAY; p++) html += `<th>الحصة ${p}</th>`;
+  html += '</tr></thead><tbody>';
+
+  DAYS.forEach(day => {
+    html += `<tr><td class="day-cell">${esc(day)}</td>`;
+    for (let p = 1; p <= PERIODS_PER_DAY; p++){
+      const isOffDay = teacherEmploymentType === 'عقد' && day === teacherOffDay;
+      const slot = findSlot(activeSectionTab, day, p);
+
+      if (isOffDay && !slot){
+        html += `<td class="slot-cell off-day" title="يوم عطلتك"></td>`;
+      } else if (slot){
+        const isMine = slot.teacherName === teacherName;
+        html += `<td class="slot-cell filled ${isMine ? 'mine' : 'others'}" data-day="${esc(day)}" data-period="${p}">
+          <div class="slot-subject">${esc(slot.subject)}</div>
+          <div class="slot-teacher">${esc(slot.teacherName)}</div>
+          ${isMine ? `<div class="slot-del" data-id="${slot.id}">✕</div>` : ''}
+        </td>`;
+      } else {
+        html += `<td class="slot-cell" data-day="${esc(day)}" data-period="${p}"></td>`;
+      }
+    }
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  timetableEl.innerHTML = html;
+
+  timetableEl.querySelectorAll('td.slot-cell:not(.filled):not(.off-day)').forEach(td => {
+    td.addEventListener('click', () => handleSlotClick(td.dataset.day, parseInt(td.dataset.period, 10)));
+  });
+  timetableEl.querySelectorAll('.slot-del').forEach(delBtn => {
+    delBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('هل تريد إلغاء هذه الحصة؟')) return;
+      await fbReadyPromise;
+      await fb.deleteDoc(fb.doc(fb.db, COLLECTION_NAME, delBtn.dataset.id));
+      await loadAllSlots();
+      renderTimetable();
+      updateTtInfo();
+    });
+  });
+}
+
+/* ================= CONFLICT DETECTION + SLOT BOOKING ================= */
+const conflictModal = document.getElementById('conflictModal');
+const conflictTitle = document.getElementById('conflictTitle');
+const conflictBody = document.getElementById('conflictBody');
+document.getElementById('conflictClose').addEventListener('click', () => conflictModal.classList.remove('show'));
+
+function showConflict(title, bodyHtml){
+  conflictTitle.textContent = title;
+  conflictBody.innerHTML = bodyHtml;
+  conflictModal.classList.add('show');
+}
+
+function findFreeSuggestion(){
+  // Find a free slot across the teacher's chosen sections that doesn't conflict with their own schedule
+  for (const sec of teacherSections){
+    for (const day of DAYS){
+      if (teacherEmploymentType === 'عقد' && day === teacherOffDay) continue;
+      for (let p = 1; p <= PERIODS_PER_DAY; p++){
+        if (findSlot(sec, day, p)) continue; // section/day/period already taken
+        if (findTeacherSlotsOnDayPeriod(teacherName, day, p).length > 0) continue; // teacher busy elsewhere
+        return { section: sec, day, period: p };
+      }
+    }
+  }
+  return null;
+}
+
+async function handleSlotClick(day, period){
+  ttErr.style.display = 'none';
+
+  // 1) Check if this section/day/period is already taken by someone else (race condition safety: re-check live)
+  await fbReadyPromise;
+  await loadAllSlots();
+
+  const existing = findSlot(activeSectionTab, day, period);
+  if (existing){
+    renderTimetable();
+    showConflict('⚠ هذه الحصة محجوزة', `
+      هذه الخانة محجوزة بالفعل من قِبل الأستاذ <b>${esc(existing.teacherName)}</b> لمادة <b>${esc(existing.subject)}</b>.<br>
+      الرجاء اختيار خانة أخرى فارغة.
+    `);
+    return;
+  }
+
+  // 2) Check if the teacher already has a class at this day/period in another section
+  const teacherConflicts = findTeacherSlotsOnDayPeriod(teacherName, day, period);
+  if (teacherConflicts.length > 0){
+    const conflict = teacherConflicts[0];
+    const suggestion = findFreeSuggestion();
+    let suggestionHtml = suggestion
+      ? `💡 اقتراح: يوجد خانة فارغة متاحة لك في <b>${esc(suggestion.section)}</b> — يوم <b>${esc(suggestion.day)}</b> — الحصة <b>${suggestion.period}</b>.`
+      : `لا توجد حالياً خانة بديلة فارغة ضمن شعبك المختارة، جرّب يوماً أو حصة أخرى.`;
+    showConflict('⚠ لديك حصة أخرى بنفس الوقت', `
+      أنت مسجّل بالفعل في <b>${esc(conflict.section)}</b> في نفس اليوم (${esc(day)}) ونفس الحصة (${period}) — لا يمكن أن تكون في مكانين بنفس الوقت.<br><br>
+      ${suggestionHtml}
+    `);
+    return;
+  }
+
+  // 3) All clear — book it
+  try{
+    await fb.addDoc(fb.collection(fb.db, COLLECTION_NAME), {
+      section: activeSectionTab,
+      day: day,
+      period: period,
+      subject: teacherSubject,
+      teacherName: teacherName,
+      employmentType: teacherEmploymentType,
+      createdAt: fb.serverTimestamp()
+    });
+    await loadAllSlots();
+    renderTimetable();
+    updateTtInfo();
+  }catch(err){
+    ttErr.textContent = 'حدث خطأ أثناء الحجز، حاول مرة أخرى: ' + (err.message || '');
+    ttErr.style.display = 'block';
+  }
+}
+
+/* ================= OVERVIEW SCREEN ================= */
+const overviewEl = document.getElementById('overviewEl');
+
+function renderOverview(){
+  let html = '<thead><tr><th>اليوم</th><th>الحصة</th>';
+  SECTIONS.forEach(sec => html += `<th>${esc(sec)}</th>`);
+  html += '</tr></thead><tbody>';
+
+  DAYS.forEach(day => {
+    for (let p = 1; p <= PERIODS_PER_DAY; p++){
+      html += `<tr>`;
+      if (p === 1) html += `<td class="day-col" rowspan="${PERIODS_PER_DAY}">${esc(day)}</td>`;
+      html += `<td class="day-col">${p}</td>`;
+      SECTIONS.forEach(sec => {
+        const slot = findSlot(sec, day, p);
+        if (slot){
+          html += `<td class="cell-filled" data-slot-id="${slot.id}"><span class="ov-subject">${esc(slot.subject)}</span><span class="ov-teacher">${esc(slot.teacherName)}</span></td>`;
+        } else {
+          html += `<td></td>`;
+        }
+      });
+      html += `</tr>`;
+    }
+  });
+  html += '</tbody>';
+  overviewEl.innerHTML = html;
+  addAdminDeleteButtons();
+}
+
+/* ================= EXPORTS ================= */
+document.getElementById('exportOverviewExcel').addEventListener('click', async (e) => {
+  const btn = e.target;
+  btn.disabled = true; btn.textContent = 'جارِ التصدير...';
+  try{
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('الجدول العام', { views:[{ rightToLeft:true }] });
+
+    const headerRow = ['اليوم', 'الحصة', ...SECTIONS];
+    sheet.addRow(headerRow);
+    sheet.getRow(1).font = { bold:true };
+    sheet.getRow(1).alignment = { vertical:'middle', horizontal:'center', wrapText:true };
+    sheet.columns = headerRow.map((h, i) => ({ width: i < 2 ? 10 : 20 }));
+
+    DAYS.forEach(day => {
+      for (let p = 1; p <= PERIODS_PER_DAY; p++){
+        const row = [day, p];
+        SECTIONS.forEach(sec => {
+          const slot = findSlot(sec, day, p);
+          row.push(slot ? `${slot.subject} (${slot.teacherName})` : '');
+        });
+        const addedRow = sheet.addRow(row);
+        addedRow.alignment = { vertical:'middle', horizontal:'center', wrapText:true };
+      }
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `الجدول_العام_اعدادية_ام_قصر_${new Date().toISOString().slice(0,10)}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }catch(err){
+    alert('حدث خطأ أثناء التصدير: ' + err.message);
+  }finally{
+    btn.disabled = false; btn.textContent = '⬇ Excel';
+  }
+});
+
+document.getElementById('exportOverviewPdf').addEventListener('click', () => {
+  let rowsHtml = '';
+  DAYS.forEach(day => {
+    for (let p = 1; p <= PERIODS_PER_DAY; p++){
+      rowsHtml += '<tr>';
+      if (p === 1) rowsHtml += `<td class="daycol" rowspan="${PERIODS_PER_DAY}">${esc(day)}</td>`;
+      rowsHtml += `<td class="daycol">${p}</td>`;
+      SECTIONS.forEach(sec => {
+        const slot = findSlot(sec, day, p);
+        rowsHtml += slot
+          ? `<td class="filled"><b>${esc(slot.subject)}</b><br><span>${esc(slot.teacherName)}</span></td>`
+          : `<td></td>`;
+      });
+      rowsHtml += '</tr>';
+    }
+  });
+
+  const headerCells = SECTIONS.map(s => `<th>${esc(s)}</th>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>الجدول العام</title>
+<style>
+  @page{ size: A4 landscape; margin: 8mm; }
+  *{box-sizing:border-box;}
+  body{font-family:'Segoe UI', Tahoma, Arial, sans-serif;margin:0;padding:0;}
+  h1{text-align:center;font-size:16px;color:#0b2545;margin:4px 0 10px;}
+  table{width:100%;border-collapse:collapse;font-size:8.5px;}
+  th,td{border:1px solid #888;text-align:center;padding:2px;}
+  th{background:#0b2545;color:#fff;}
+  td.daycol{background:#F6F8FB;font-weight:800;}
+  td.filled b{color:#0b2545;}
+  td.filled span{color:#666;font-size:7.5px;}
+  <\/style></head>
+<body>
+  <h1>الجدول العام لحصص اعدادية أم قصر للبنين</h1>
+  <table>
+    <thead><tr><th>اليوم</th><th>الحصة</th>${headerCells}</tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <script>window.onload = () => window.print();<\/script>
+</body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win){ alert('الرجاء السماح بفتح النوافذ المنبثقة لتتمكن من تنزيل الملف.'); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+});
+
+/* ================= ADMIN ACCESS (edit/block slots) ================= */
+const adminLoginModal = document.getElementById('adminLoginModal');
+const adminLoginInput = document.getElementById('adminLoginInput');
+const adminLoginErr = document.getElementById('adminLoginErr');
+
+document.getElementById('adminAccessBtn').addEventListener('click', () => {
+  adminLoginInput.value = '';
+  adminLoginErr.textContent = '';
+  adminLoginModal.classList.add('show');
+  setTimeout(() => adminLoginInput.focus(), 100);
+});
+document.getElementById('adminLoginCancel').addEventListener('click', () => adminLoginModal.classList.remove('show'));
+adminLoginInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('adminLoginGo').click(); });
+
+document.getElementById('adminLoginGo').addEventListener('click', () => {
+  if (adminLoginInput.value === ADMIN_CODE){
+    adminLoginModal.classList.remove('show');
+    enableAdminMode();
+  } else {
+    adminLoginErr.textContent = 'الرمز السري غير صحيح';
+  }
+});
+
+let adminModeActive = false;
+
+function enableAdminMode(){
+  adminModeActive = true;
+  addAdminDeleteButtons();
+  alert('تم تفعيل وضع الإدارة. يمكنك الآن حذف أي حصة من الجدول العام عبر زر "✕" الظاهر داخل كل خانة محجوزة.');
+}
+
+function addAdminDeleteButtons(){
+  if (!adminModeActive) return;
+  overviewEl.querySelectorAll('td.cell-filled').forEach(td => {
+    if (td.querySelector('.admin-del')) return;
+    const delBtn = document.createElement('div');
+    delBtn.className = 'admin-del';
+    delBtn.textContent = '✕';
+    delBtn.dataset.slotId = td.dataset.slotId;
+    delBtn.style.cssText = 'margin-top:3px;background:#b3261e;color:#fff;border-radius:6px;padding:1px 5px;font-size:10px;cursor:pointer;display:inline-block;font-weight:800;';
+    td.appendChild(delBtn);
+  });
+}
+
+overviewEl.addEventListener('click', async (e) => {
+  if (!e.target.classList.contains('admin-del')) return;
+  const slotId = e.target.dataset.slotId;
+  if (!slotId) return;
+  if (!confirm('هل تريد حذف هذه الحصة من الجدول نهائياً؟')) return;
+  await fbReadyPromise;
+  await fb.deleteDoc(fb.doc(fb.db, COLLECTION_NAME, slotId));
+  await loadAllSlots();
+  renderOverview();
+  addAdminDeleteButtons();
+});
+
+/* ================= INIT ================= */
+showRegisterScreen();
+</script>
+</body>
+</html>
