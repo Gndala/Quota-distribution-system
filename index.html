@@ -148,18 +148,25 @@
 
   /* Timetable grid */
   .timetable-wrap{overflow-x:auto;}
-  table.timetable{width:100%;border-collapse:collapse;min-width:620px;}
-  table.timetable th, table.timetable td{border:1px solid var(--border);text-align:center;padding:0;}
-  table.timetable th{background:#F6F8FB;font-weight:800;font-size:12.5px;padding:8px 4px;}
-  table.timetable td.day-cell{background:#F6F8FB;font-weight:800;font-size:12.5px;padding:8px 6px;white-space:nowrap;}
-  table.timetable td.slot-cell{height:58px;width:90px;cursor:pointer;position:relative;transition:background .12s;}
+  table.timetable{width:100%;border-collapse:collapse;min-width:760px;table-layout:fixed;}
+  table.timetable th, table.timetable td{border:1px solid var(--border);text-align:center;}
+  table.timetable th{background:var(--navy);color:#fff;font-weight:800;font-size:12.5px;padding:10px 4px;}
+  table.timetable th.day-head{width:110px;}
+  table.timetable td.day-cell{
+    background:#F6F8FB;font-weight:800;font-size:13px;color:var(--navy);
+    padding:10px 6px;white-space:normal;word-break:keep-all;width:110px;
+  }
+  table.timetable td.slot-cell{
+    height:64px;cursor:pointer;position:relative;transition:background .12s;
+    padding:4px 3px;vertical-align:middle;
+  }
   table.timetable td.slot-cell:hover{background:#F0F7FF;}
   table.timetable td.slot-cell.filled{cursor:default;}
   table.timetable td.slot-cell.mine{background:linear-gradient(135deg, #E0F2FE, #DBEAFE);}
   table.timetable td.slot-cell.others{background:#FDEEEE;cursor:not-allowed;}
   table.timetable td.slot-cell.off-day{background:repeating-linear-gradient(45deg, #f1f1f1, #f1f1f1 6px, #e6e6e6 6px, #e6e6e6 12px);cursor:not-allowed;}
-  .slot-subject{font-size:12px;font-weight:800;color:var(--navy);}
-  .slot-teacher{font-size:10.5px;color:var(--muted);margin-top:2px;}
+  .slot-subject{font-size:12px;font-weight:800;color:var(--navy);line-height:1.3;word-wrap:break-word;}
+  .slot-teacher{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.3;word-wrap:break-word;}
   .slot-cell.others .slot-subject{color:var(--danger);}
   .slot-del{
     position:absolute;top:2px;left:2px;
@@ -529,7 +536,7 @@ function renderSectionTabs(){
 }
 
 function renderTimetable(){
-  let html = '<thead><tr><th>اليوم</th>';
+  let html = '<thead><tr><th class="day-head">اليوم</th>';
   for (let p = 1; p <= PERIODS_PER_DAY; p++) html += `<th>الحصة ${p}</th>`;
   html += '</tr></thead><tbody>';
 
@@ -725,45 +732,85 @@ document.getElementById('exportOverviewExcel').addEventListener('click', async (
 });
 
 document.getElementById('exportOverviewPdf').addEventListener('click', () => {
-  let rowsHtml = '';
-  DAYS.forEach(day => {
-    for (let p = 1; p <= PERIODS_PER_DAY; p++){
-      rowsHtml += '<tr>';
-      if (p === 1) rowsHtml += `<td class="daycol" rowspan="${PERIODS_PER_DAY}">${esc(day)}</td>`;
-      rowsHtml += `<td class="daycol">${p}</td>`;
-      SECTIONS.forEach(sec => {
-        const slot = findSlot(sec, day, p);
-        rowsHtml += slot
-          ? `<td class="filled"><b>${esc(slot.subject)}</b><br><span>${esc(slot.teacherName)}</span></td>`
-          : `<td></td>`;
-      });
-      rowsHtml += '</tr>';
-    }
+  // Split the 14 sections into groups of 3 columns per A4 portrait page (large, readable text),
+  // so every page stays self-contained with its own day/period columns and can be cut & taped
+  // side by side with the next page to reconstruct one giant wall poster.
+  const SECTIONS_PER_PAGE = 3;
+  const sectionGroups = [];
+  for (let i = 0; i < SECTIONS.length; i += SECTIONS_PER_PAGE){
+    sectionGroups.push(SECTIONS.slice(i, i + SECTIONS_PER_PAGE));
+  }
+
+  function buildPageHtml(sectionsInPage, pageNum, totalPages){
+    const headerCells = sectionsInPage.map(s => `<th>${esc(s)}</th>`).join('');
+    let rowsHtml = '';
+    DAYS.forEach(day => {
+      for (let p = 1; p <= PERIODS_PER_DAY; p++){
+        rowsHtml += '<tr>';
+        if (p === 1) rowsHtml += `<td class="daycol" rowspan="${PERIODS_PER_DAY}">${esc(day)}</td>`;
+        rowsHtml += `<td class="periodcol">${p}</td>`;
+        sectionsInPage.forEach(sec => {
+          const slot = findSlot(sec, day, p);
+          rowsHtml += slot
+            ? `<td class="filled"><b>${esc(slot.subject)}</b><br><span>${esc(slot.teacherName)}</span></td>`
+            : `<td></td>`;
+        });
+        rowsHtml += '</tr>';
+      }
+    });
+
+    return `
+    <section class="sheet">
+      <h1>الجدول العام لحصص اعدادية أم قصر للبنين <span class="pagebadge">صفحة ${pageNum} من ${totalPages}</span></h1>
+      <table>
+        <thead><tr><th class="daycol-head">اليوم</th><th class="periodcol-head">الحصة</th>${headerCells}</tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div class="cutline-note">✂ لصق مع الصفحة ${pageNum < totalPages ? (pageNum + 1) : '—'} من اليمين لإكمال الجدول</div>
+    </section>`;
+  }
+
+  let allPagesHtml = '';
+  sectionGroups.forEach((group, idx) => {
+    allPagesHtml += buildPageHtml(group, idx + 1, sectionGroups.length);
   });
 
-  const headerCells = SECTIONS.map(s => `<th>${esc(s)}</th>`).join('');
-
   const html = `<!DOCTYPE html>
-<html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>الجدول العام</title>
+<html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>الجدول العام - صفحات كبيرة للطباعة واللصق</title>
 <style>
-  @page{ size: A4 landscape; margin: 8mm; }
+  @page{ size: A4 portrait; margin: 10mm; }
   *{box-sizing:border-box;}
   body{font-family:'Segoe UI', Tahoma, Arial, sans-serif;margin:0;padding:0;}
-  h1{text-align:center;font-size:16px;color:#0b2545;margin:4px 0 10px;}
-  table{width:100%;border-collapse:collapse;font-size:8.5px;}
-  th,td{border:1px solid #888;text-align:center;padding:2px;}
-  th{background:#0b2545;color:#fff;}
-  td.daycol{background:#F6F8FB;font-weight:800;}
-  td.filled b{color:#0b2545;}
-  td.filled span{color:#666;font-size:7.5px;}
+  .sheet{ page-break-after:always; display:flex; flex-direction:column; min-height:270mm; }
+  .sheet:last-child{ page-break-after:auto; }
+  h1{
+    text-align:center;font-size:17px;color:#0b2545;margin:0 0 12px;
+    display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
+  }
+  .pagebadge{
+    background:#c9a227;color:#0b2545;font-size:12px;font-weight:800;
+    padding:3px 10px;border-radius:999px;
+  }
+  table{width:100%;border-collapse:collapse;flex:1;}
+  th,td{border:2px solid #0b2545;text-align:center;padding:6px 4px;}
+  th{background:#0b2545;color:#fff;font-size:15px;font-weight:800;}
+  th.daycol-head{width:16%;}
+  th.periodcol-head{width:8%;}
+  td.daycol{background:#F6F8FB;font-weight:800;font-size:15px;color:#0b2545;}
+  td.periodcol{background:#F6F8FB;font-weight:800;font-size:15px;color:#0b2545;}
+  td.filled{ height:30mm; }
+  td.filled b{color:#0b2545;font-size:15px;display:block;margin-bottom:4px;}
+  td.filled span{color:#444;font-size:12.5px;display:block;}
+  .cutline-note{
+    text-align:center;font-size:11px;color:#888;margin-top:8px;font-weight:700;
+  }
+  @media print{
+    body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
   <\/style></head>
 <body>
-  <h1>الجدول العام لحصص اعدادية أم قصر للبنين</h1>
-  <table>
-    <thead><tr><th>اليوم</th><th>الحصة</th>${headerCells}</tr></thead>
-    <tbody>${rowsHtml}</tbody>
-  </table>
-  <script>window.onload = () => window.print();<\/script>
+${allPagesHtml}
+<script>window.onload = () => window.print();<\/script>
 </body></html>`;
 
   const win = window.open('', '_blank');
