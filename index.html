@@ -744,16 +744,22 @@ document.getElementById('exportOverviewPdf').addEventListener('click', () => {
   function buildPageHtml(sectionsInPage, pageNum, totalPages){
     const headerCells = sectionsInPage.map(s => `<th>${esc(s)}</th>`).join('');
     let rowsHtml = '';
-    DAYS.forEach(day => {
+    DAYS.forEach((day, dayIdx) => {
+      const dayStripeClass = dayIdx % 2 === 0 ? 'day-stripe-a' : 'day-stripe-b';
       for (let p = 1; p <= PERIODS_PER_DAY; p++){
-        rowsHtml += '<tr>';
-        if (p === 1) rowsHtml += `<td class="daycol" rowspan="${PERIODS_PER_DAY}">${esc(day)}</td>`;
-        rowsHtml += `<td class="periodcol">${p}</td>`;
+        const isFirstPeriodOfDay = p === 1;
+        const rowClasses = [dayStripeClass, isFirstPeriodOfDay ? 'day-start' : ''].filter(Boolean).join(' ');
+        rowsHtml += `<tr class="${rowClasses}">`;
+        if (isFirstPeriodOfDay) rowsHtml += `<td class="daycol ${dayStripeClass}" rowspan="${PERIODS_PER_DAY}">${esc(day)}</td>`;
+        rowsHtml += `<td class="periodcol ${dayStripeClass}">${p}</td>`;
         sectionsInPage.forEach(sec => {
           const slot = findSlot(sec, day, p);
-          rowsHtml += slot
-            ? `<td class="filled"><b>${esc(slot.subject)}</b><br><span>${esc(slot.teacherName)}</span></td>`
-            : `<td></td>`;
+          if (!slot){
+            rowsHtml += `<td class="${dayStripeClass}"></td>`;
+            return;
+          }
+          const empClass = slot.employmentType === 'عقد' ? 'emp-aqd' : 'emp-malak';
+          rowsHtml += `<td class="filled ${empClass}"><b>${esc(slot.subject)}</b><br><span>${esc(slot.teacherName)}</span></td>`;
         });
         rowsHtml += '</tr>';
       }
@@ -761,11 +767,37 @@ document.getElementById('exportOverviewPdf').addEventListener('click', () => {
 
     return `
     <section class="sheet">
-      <h1>الجدول العام لحصص اعدادية أم قصر للبنين <span class="pagebadge">صفحة ${pageNum} من ${totalPages}</span></h1>
+      <header class="roster-head">
+        <div class="head-right">
+          <div>جمهورية العراق</div>
+          <div>وزارة التربية</div>
+          <div>المديرية العامة للتربية في محافظة البصرة</div>
+          <div>قسم تربية الزبير</div>
+          <div>إدارة اعدادية أم قصر للبنين</div>
+        </div>
+        <div class="head-center">
+          <div class="center-title">جدول حصص المدرسة</div>
+          <div class="pagebadge">صفحة ${pageNum} من ${totalPages}</div>
+        </div>
+        <div class="head-left" dir="ltr">
+          <div>Republic of Iraq</div>
+          <div>Ministry of Education</div>
+          <div>Basra General Directorate of Education</div>
+          <div>Zubair Education Department</div>
+          <div>Umm Qasr Secondary School for Boys</div>
+        </div>
+      </header>
+
       <table>
         <thead><tr><th class="daycol-head">اليوم</th><th class="periodcol-head">الحصة</th>${headerCells}</tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
+
+      <div class="legend">
+        <span class="legend-item"><span class="legend-swatch emp-malak"></span> ملاك</span>
+        <span class="legend-item"><span class="legend-swatch emp-aqd"></span> عقد</span>
+      </div>
+
       <div class="cutline-note">✂ لصق مع الصفحة ${pageNum < totalPages ? (pageNum + 1) : '—'} من اليمين لإكمال الجدول</div>
     </section>`;
   }
@@ -778,32 +810,66 @@ document.getElementById('exportOverviewPdf').addEventListener('click', () => {
   const html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>الجدول العام - صفحات كبيرة للطباعة واللصق</title>
 <style>
-  @page{ size: A4 portrait; margin: 10mm; }
+  @page{ size: A4 portrait; margin: 9mm; }
   *{box-sizing:border-box;}
-  body{font-family:'Segoe UI', Tahoma, Arial, sans-serif;margin:0;padding:0;}
-  .sheet{ page-break-after:always; display:flex; flex-direction:column; min-height:270mm; }
+  body{font-family:'Segoe UI', Tahoma, Arial, sans-serif;margin:0;padding:0;color:#111;}
+  .sheet{ page-break-after:always; display:flex; flex-direction:column; min-height:277mm; }
   .sheet:last-child{ page-break-after:auto; }
-  h1{
-    text-align:center;font-size:17px;color:#0b2545;margin:0 0 12px;
-    display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
+
+  .roster-head{
+    display:flex; align-items:flex-start; justify-content:space-between;
+    border-bottom:3px double #0b2545; padding-bottom:7px; margin-bottom:8px;
   }
+  .head-right{ text-align:right; font-size:10.5px; font-weight:800; line-height:1.5; flex:1; color:#0b2545; }
+  .head-left{ text-align:left; font-size:9.5px; font-weight:700; line-height:1.5; flex:1; color:#0b2545; }
+  .head-center{
+    flex:0 0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:5px; padding:0 8px;
+  }
+  .center-title{ font-size:16px; font-weight:900; color:#0b2545; white-space:nowrap; }
   .pagebadge{
-    background:#c9a227;color:#0b2545;font-size:12px;font-weight:800;
-    padding:3px 10px;border-radius:999px;
+    background:#c9a227;color:#0b2545;font-size:11px;font-weight:800;
+    padding:3px 12px;border-radius:999px;
   }
+
   table{width:100%;border-collapse:collapse;flex:1;}
-  th,td{border:2px solid #0b2545;text-align:center;padding:6px 4px;}
-  th{background:#0b2545;color:#fff;font-size:15px;font-weight:800;}
-  th.daycol-head{width:16%;}
-  th.periodcol-head{width:8%;}
-  td.daycol{background:#F6F8FB;font-weight:800;font-size:15px;color:#0b2545;}
-  td.periodcol{background:#F6F8FB;font-weight:800;font-size:15px;color:#0b2545;}
-  td.filled{ height:30mm; }
-  td.filled b{color:#0b2545;font-size:15px;display:block;margin-bottom:4px;}
-  td.filled span{color:#444;font-size:12.5px;display:block;}
-  .cutline-note{
-    text-align:center;font-size:11px;color:#888;margin-top:8px;font-weight:700;
+  th,td{border:1.5px solid #0b2545;text-align:center;padding:5px 3px;}
+  th{background:#0b2545;color:#fff;font-size:14px;font-weight:800;}
+  th.daycol-head{width:15%;}
+  th.periodcol-head{width:7%;}
+
+  td.daycol{font-weight:900;font-size:14.5px;color:#0b2545;}
+  td.periodcol{font-weight:800;font-size:14px;color:#0b2545;}
+
+  /* Alternate background per day (6-period block) so each day is visually distinct from the next */
+  td.day-stripe-a, tr.day-stripe-a > td.periodcol{ background:#EEF3FA; }
+  td.day-stripe-b, tr.day-stripe-b > td.periodcol{ background:#FBF7E9; }
+  tr.day-start > td{ border-top:3px solid #0b2545; }
+
+  td.filled{ height:28mm; }
+  td.filled b{font-size:14px;display:block;margin-bottom:3px;}
+  td.filled span{font-size:11.5px;display:block;}
+
+  /* Employment type color coding */
+  td.filled.emp-malak{ background:#DCFCE7 !important; }
+  td.filled.emp-malak b{ color:#166534; }
+  td.filled.emp-malak span{ color:#15803d; }
+
+  td.filled.emp-aqd{ background:#FEE2E2 !important; }
+  td.filled.emp-aqd b{ color:#991B1B; }
+  td.filled.emp-aqd span{ color:#B91C1C; }
+
+  .legend{
+    display:flex; justify-content:center; gap:22px; margin-top:8px;
+    font-size:11.5px; font-weight:800; color:#333;
   }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .legend-swatch{ width:14px; height:14px; border-radius:3px; display:inline-block; border:1px solid #999; }
+  .legend-swatch.emp-malak{ background:#DCFCE7; }
+  .legend-swatch.emp-aqd{ background:#FEE2E2; }
+
+  .cutline-note{ text-align:center;font-size:10.5px;color:#888;margin-top:6px;font-weight:700; }
+
   @media print{
     body{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   }
